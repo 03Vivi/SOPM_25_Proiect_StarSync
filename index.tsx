@@ -9,7 +9,8 @@ import {
   Modal, 
   StatusBar, 
   Alert,
-  SafeAreaView
+  SafeAreaView,
+  Dimensions
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Svg, { Path, Line, Polyline, Circle, Rect } from 'react-native-svg';
@@ -61,22 +62,19 @@ const motivationalQuotes = [
   { text: "Singurul mod de a realiza lucruri minunate este să iubești ceea ce faci.", author: "Steve Jobs" },
 ];
 
-// --- COMPONENTE AUXILIARE ---
-const CustomDateTimePicker = ({ visible, onClose, onSelect, theme }) => {
-  const [selectedDate, setSelectedDate] = useState(new Date());
+// --- COMPONENTA DATETIME PICKER (FĂRĂ MODAL INTEGRAT) ---
+const CustomDateTimePicker = ({ onClose, onSelect, theme }) => {
   const [tempDate, setTempDate] = useState(new Date());
-  
   const [hour, setHour] = useState(new Date().getHours());
   const [minute, setMinute] = useState(new Date().getMinutes());
 
   useEffect(() => {
-    if (visible) {
-      const now = new Date();
-      setTempDate(now);
-      setHour(now.getHours());
-      setMinute(now.getMinutes());
-    }
-  }, [visible]);
+    // Reset la data curentă la montare
+    const now = new Date();
+    setTempDate(now);
+    setHour(now.getHours());
+    setMinute(now.getMinutes());
+  }, []);
 
   const getDaysInMonth = (date) => {
     const year = date.getFullYear();
@@ -117,16 +115,16 @@ const CustomDateTimePicker = ({ visible, onClose, onSelect, theme }) => {
   const handleConfirm = () => {
     const dateStr = `${tempDate.getFullYear()}-${String(tempDate.getMonth() + 1).padStart(2, '0')}-${String(tempDate.getDate()).padStart(2, '0')}`;
     const timeStr = `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
-    
     onSelect(`${dateStr} ${timeStr}`);
     onClose();
   };
 
   const formatTime = (val) => String(val).padStart(2, '0');
 
+  // Returnăm un View absolut, nu un Modal, pentru a evita nested modals pe iOS
   return (
-    <Modal visible={visible} transparent animationType="fade">
-      <View style={styles.modalOverlay}>
+    <View style={[styles.overlayAbsolute, { zIndex: 9999 }]}>
+      <View style={[styles.modalOverlay, {backgroundColor: 'rgba(0,0,0,0.5)'}]}>
         <View style={[styles.modalContent, { backgroundColor: theme.card }]}>
           <View style={styles.calendarHeader}>
             <TouchableOpacity onPress={() => changeMonth(-1)}><IconLeft color={theme.text}/></TouchableOpacity>
@@ -138,9 +136,7 @@ const CustomDateTimePicker = ({ visible, onClose, onSelect, theme }) => {
 
           <View style={styles.calendarGrid}>
             {['L', 'M', 'M', 'J', 'V', 'S', 'D'].map((d, index) => (
-              <Text key={index} style={{ width: '13%', textAlign: 'center', color: theme.textLight, fontSize: 12 }}>
-                {d}
-              </Text>
+              <Text key={index} style={{ width: '13%', textAlign: 'center', color: theme.textLight, fontSize: 12 }}>{d}</Text>
             ))}
             
             {getDaysInMonth(tempDate).map((day, idx) => {
@@ -189,7 +185,7 @@ const CustomDateTimePicker = ({ visible, onClose, onSelect, theme }) => {
           </View>
         </View>
       </View>
-    </Modal>
+    </View>
   );
 };
 
@@ -238,10 +234,9 @@ export default function App() {
   const [activeTab, setActiveTab] = useState('tasks');
   const [currentDate, setCurrentDate] = useState(new Date());
   
-  // State pentru Sortare, Căutare și FILTRARE
   const [searchQuery, setSearchQuery] = useState('');
   const [sortBy, setSortBy] = useState('date');
-  const [filterMode, setFilterMode] = useState('all'); // 'all', 'overdue', 'future', 'completed', 'canceled'
+  const [filterMode, setFilterMode] = useState('all'); 
   
   const [themeName, setThemeName] = useState('cute');
   const [showStats, setShowStats] = useState(false);
@@ -252,13 +247,11 @@ export default function App() {
   const [streak, setStreak] = useState(0);
   const [lastLogin, setLastLogin] = useState(null);
 
-  // States ADĂUGARE Task
   const [newTaskTitle, setNewTaskTitle] = useState('');
   const [newTaskDeadline, setNewTaskDeadline] = useState(''); 
   const [newTaskDesc, setNewTaskDesc] = useState('');
   const [newTaskPriority, setNewTaskPriority] = useState('normal'); 
 
-  // States EDITARE Task
   const [editingTask, setEditingTask] = useState(null); 
   const [editTitle, setEditTitle] = useState('');
   const [editDeadline, setEditDeadline] = useState('');
@@ -266,9 +259,9 @@ export default function App() {
   const [editPriority, setEditPriority] = useState('normal');
   const [showEditModal, setShowEditModal] = useState(false);
   
-  // State pentru Date Picker (Folosit si la Add si la Edit)
+  // States Picker
   const [showDatePicker, setShowDatePicker] = useState(false);
-  const [activeDateInput, setActiveDateInput] = useState('new'); // 'new' sau 'edit'
+  const [activeDateInput, setActiveDateInput] = useState('new'); 
 
   const [currentQuote, setCurrentQuote] = useState(motivationalQuotes[0]);
   const theme = themes[themeName];
@@ -375,7 +368,6 @@ export default function App() {
   };
 
   const cancelTask = (id) => {
-    // Funcție pentru a muta în Anulate (Soft Delete)
     setTasks(tasks.map(t => t.id === id ? { ...t, status: 'canceled' } : t));
   };
 
@@ -399,7 +391,7 @@ export default function App() {
     setTasks(tasks.map(t => t.id === id ? { ...t, isPinned: !t.isPinned } : t));
   };
 
-  // --- EDIT TASK FUNCTIONS ---
+  // --- EDIT TASK ---
   const openEditModal = (task) => {
     setEditingTask(task);
     setEditTitle(task.title);
@@ -425,7 +417,7 @@ export default function App() {
     setEditingTask(null);
   };
 
-  // --- FILTRARE, CĂUTARE & SORTARE ---
+  // --- FILTRARE & SORTARE ---
   const getFilteredTasks = () => {
     let filtered = [...tasks];
     const now = new Date();
@@ -486,7 +478,7 @@ export default function App() {
     <SafeAreaView style={[styles.container, { backgroundColor: theme.bg }]}>
       <StatusBar barStyle={themeName === 'dark' ? 'light-content' : 'dark-content'} />
       
-      {/* HEADER CU STREAK */}
+      {/* HEADER */}
       <View style={styles.header}>
         <View>
           <Text style={[styles.headerTitle, { color: theme.text }]}>✨ StarSync</Text>
@@ -533,11 +525,11 @@ export default function App() {
                 <View style={[styles.searchBar, {backgroundColor: theme.card}]}>
                    <IconSearch color={theme.textLight}/>
                    <TextInput 
-                      placeholder="Caută..." 
-                      placeholderTextColor={theme.textLight}
-                      style={{flex: 1, marginLeft: 8, color: theme.text}}
-                      value={searchQuery}
-                      onChangeText={setSearchQuery}
+                     placeholder="Caută..." 
+                     placeholderTextColor={theme.textLight}
+                     style={{flex: 1, marginLeft: 8, color: theme.text}}
+                     value={searchQuery}
+                     onChangeText={setSearchQuery}
                    />
                 </View>
                 <TouchableOpacity 
@@ -658,16 +650,15 @@ export default function App() {
                     (task.status === 'completed' || task.status === 'canceled') && { textDecorationLine: 'line-through' }
                   ]}>{task.title}</Text>
                   <View style={{flexDirection: 'row', alignItems: 'center'}}>
-                     <View style={{width: 8, height: 8, borderRadius: 4, backgroundColor: theme[task.priority], marginRight: 6}}/>
-                     <Text style={{ color: theme.textLight, fontSize: 12 }}>
-                       {task.deadline} • {task.priority.toUpperCase()}
-                     </Text>
+                      <View style={{width: 8, height: 8, borderRadius: 4, backgroundColor: theme[task.priority], marginRight: 6}}/>
+                      <Text style={{ color: theme.textLight, fontSize: 12 }}>
+                        {task.deadline} • {task.priority.toUpperCase()}
+                      </Text>
                   </View>
                   {task.desc ? <Text style={[styles.taskDesc, { backgroundColor: theme.bg, color: theme.text }]}>{task.desc}</Text> : null}
                 </View>
                 
                 <View style={styles.taskActions}>
-                   {/* BUTOANE PENTRU TASK-URI ACTIVE */}
                    {task.status !== 'completed' && task.status !== 'canceled' && (
                      <>
                        <TouchableOpacity onPress={() => openEditModal(task)} style={[styles.actionBtn, { borderColor: theme.accent }]}>
@@ -675,16 +666,11 @@ export default function App() {
                        </TouchableOpacity>
                        <TouchableOpacity onPress={() => completeTask(task.id)} style={[styles.actionBtn, { borderColor: theme.secondary }]}><IconCheck color={theme.secondary} /></TouchableOpacity>
                        <TouchableOpacity onPress={() => togglePin(task.id)} style={[styles.actionBtn, { borderColor: 'orange' }]}><IconPin color={task.isPinned ? "orange" : theme.text} fill={task.isPinned} /></TouchableOpacity>
-                       
-                       {/* Butonul de gunoi: în mod normal, mută la ANULATE */}
                        <TouchableOpacity onPress={() => cancelTask(task.id)} style={[styles.actionBtn, { borderColor: theme.danger }]}><IconTrash color={theme.danger} /></TouchableOpacity>
                      </>
                    )}
-
-                   {/* BUTOANE PENTRU TASK-URI ANULATE / COMPLETATE */}
                    {(task.status === 'completed' || task.status === 'canceled') && (
-                      // Aici butonul de gunoi STERGE DEFINITIV
-                      <TouchableOpacity onPress={() => handleDelete(task.id)} style={[styles.actionBtn, { borderColor: theme.danger }]}><IconTrash color={theme.danger} /></TouchableOpacity>
+                     <TouchableOpacity onPress={() => handleDelete(task.id)} style={[styles.actionBtn, { borderColor: theme.danger }]}><IconTrash color={theme.danger} /></TouchableOpacity>
                    )}
                 </View>
               </View>
@@ -692,7 +678,7 @@ export default function App() {
           </View>
         )}
 
-        {/* === TAB CALENDAR === */}
+        {/* === TAB CALENDAR (CU LOGICA DE CULORI) === */}
         {activeTab === 'calendar' && (
           <View style={[styles.calendarContainer, { backgroundColor: theme.card }]}>
             <View style={styles.calendarHeader}>
@@ -704,20 +690,45 @@ export default function App() {
             </View>
             <View style={styles.calendarGrid}>
               {['Lu', 'Ma', 'Mi', 'Jo', 'Vi', 'Sâ', 'Du'].map(d => <Text key={d} style={{ width: '13%', textAlign: 'center', fontWeight: 'bold', color: theme.textLight }}>{d}</Text>)}
+              
               {getDaysInMonth(currentDate).map((day, index) => {
                 if (!day) return <View key={`empty-${index}`} style={{ width: '13%', aspectRatio: 1 }} />;
+                
                 const dateStr = `${day.getFullYear()}-${String(day.getMonth() + 1).padStart(2, '0')}-${String(day.getDate()).padStart(2, '0')}`;
-                const hasTask = tasks.some(t => t.deadline.startsWith(dateStr) && t.status !== 'canceled');
+                
+                // Filtram task-urile active pentru ziua respectiva
+                const dayTasks = tasks.filter(t => t.deadline.startsWith(dateStr) && t.status !== 'canceled');
                 const isToday = day.toDateString() === new Date().toDateString();
+                
+                // Logica Culori
+                let cellColor = theme.bg;
+                if (dayTasks.length > 0) {
+                  const allCompleted = dayTasks.every(t => t.status === 'completed');
+                  const checkDate = new Date(day);
+                  const todayDate = new Date();
+                  checkDate.setHours(0,0,0,0);
+                  todayDate.setHours(0,0,0,0);
+                  const isPast = checkDate < todayDate;
+
+                  if (allCompleted) {
+                    cellColor = '#4ade80'; // Verde
+                  } else if (isPast) {
+                    cellColor = theme.danger; // Rosu
+                  } else {
+                    cellColor = theme.secondary; // Normal (Tema)
+                  }
+                }
                 
                 return (
                    <View key={index} style={[
                      styles.calendarDay, 
-                     { backgroundColor: theme.bg },
-                     hasTask && { backgroundColor: theme.secondary },
+                     { backgroundColor: cellColor },
                      isToday && { borderColor: theme.accent, borderWidth: 2 }
                    ]}>
-                     <Text style={{ color: theme.text }}>{day.getDate()}</Text>
+                     <Text style={{ 
+                        color: cellColor !== theme.bg ? '#fff' : theme.text,
+                        fontWeight: cellColor !== theme.bg ? 'bold' : 'normal'
+                      }}>{day.getDate()}</Text>
                    </View>
                 );
               })}
@@ -743,78 +754,85 @@ export default function App() {
         )}
       </ScrollView>
 
-      {/* COMPONENTE MODALE */}
-      <CustomDateTimePicker 
-        visible={showDatePicker} 
-        onClose={() => setShowDatePicker(false)}
-        onSelect={(date) => {
-          if (activeDateInput === 'new') {
-            setNewTaskDeadline(date);
-          } else {
-            setEditDeadline(date);
-          }
-        }}
-        theme={theme}
-      />
+      {/* --- MODALE --- */}
 
-      {/* MODAL EDITARE */}
+      {/* 1. Picker pentru TASK NOU (Învelit în Modal pentru a apărea peste ecranul principal) */}
+      {showDatePicker && activeDateInput === 'new' && (
+        <Modal visible={true} transparent animationType="fade">
+           <CustomDateTimePicker 
+             onClose={() => setShowDatePicker(false)}
+             onSelect={(date) => setNewTaskDeadline(date)}
+             theme={theme}
+           />
+        </Modal>
+      )}
+
+      {/* 2. Modal EDITARE (Picker-ul este inclus în interior) */}
       <Modal visible={showEditModal} transparent animationType="slide">
          <View style={styles.modalOverlay}>
            <View style={[styles.modalContent, { backgroundColor: theme.card }]}>
              <Text style={[styles.modalTitle, {color: theme.text}]}>✏️ Editează Task</Text>
              
              <TextInput 
-                placeholder="Nume activitate" 
-                placeholderTextColor={theme.textLight}
-                style={[styles.input, { backgroundColor: theme.bg, color: theme.text }]}
-                value={editTitle}
-                onChangeText={setEditTitle}
-              />
-              
-              <View style={{flexDirection: 'row', gap: 10, marginBottom: 10}}>
-                <TouchableOpacity 
-                  style={[styles.input, {flex: 1, backgroundColor: theme.bg, justifyContent: 'center', marginBottom: 0}]}
-                  onPress={() => { setActiveDateInput('edit'); setShowDatePicker(true); }}
-                >
-                  <Text style={{color: theme.text, fontSize: 13}}>
-                    {editDeadline ? `📅 ${editDeadline}` : "Selectează Data"}
-                  </Text>
-                </TouchableOpacity>
+               placeholder="Nume activitate" 
+               placeholderTextColor={theme.textLight}
+               style={[styles.input, { backgroundColor: theme.bg, color: theme.text }]}
+               value={editTitle}
+               onChangeText={setEditTitle}
+             />
+             
+             <View style={{flexDirection: 'row', gap: 10, marginBottom: 10}}>
+               <TouchableOpacity 
+                 style={[styles.input, {flex: 1, backgroundColor: theme.bg, justifyContent: 'center', marginBottom: 0}]}
+                 onPress={() => { setActiveDateInput('edit'); setShowDatePicker(true); }}
+               >
+                 <Text style={{color: theme.text, fontSize: 13}}>
+                   {editDeadline ? `📅 ${editDeadline}` : "Selectează Data"}
+                 </Text>
+               </TouchableOpacity>
 
-                <View style={{flexDirection: 'row', backgroundColor: theme.bg, borderRadius: 12, overflow: 'hidden'}}>
-                  {['low', 'normal', 'high'].map(p => (
-                    <TouchableOpacity 
-                      key={p} 
-                      onPress={() => setEditPriority(p)}
-                      style={{
-                        padding: 10, 
-                        backgroundColor: editPriority === p ? theme[p] : 'transparent'
-                      }}
-                    >
-                      <View style={{width: 10, height: 10, borderRadius: 5, backgroundColor: editPriority === p ? '#fff' : theme[p]}}/>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              </View>
+               <View style={{flexDirection: 'row', backgroundColor: theme.bg, borderRadius: 12, overflow: 'hidden'}}>
+                 {['low', 'normal', 'high'].map(p => (
+                   <TouchableOpacity 
+                     key={p} 
+                     onPress={() => setEditPriority(p)}
+                     style={{
+                       padding: 10, 
+                       backgroundColor: editPriority === p ? theme[p] : 'transparent'
+                     }}
+                   >
+                     <View style={{width: 10, height: 10, borderRadius: 5, backgroundColor: editPriority === p ? '#fff' : theme[p]}}/>
+                   </TouchableOpacity>
+                 ))}
+               </View>
+             </View>
 
-              <TextInput 
-                placeholder="Detalii (opțional)" 
-                placeholderTextColor={theme.textLight}
-                style={[styles.input, { backgroundColor: theme.bg, color: theme.text }]}
-                value={editDesc}
-                onChangeText={setEditDesc}
-              />
+             <TextInput 
+               placeholder="Detalii (opțional)" 
+               placeholderTextColor={theme.textLight}
+               style={[styles.input, { backgroundColor: theme.bg, color: theme.text }]}
+               value={editDesc}
+               onChangeText={setEditDesc}
+             />
 
-              <View style={{flexDirection: 'row', gap: 10, marginTop: 15}}>
+             <View style={{flexDirection: 'row', gap: 10, marginTop: 15}}>
                  <TouchableOpacity onPress={() => setShowEditModal(false)} style={[styles.btnClose, { backgroundColor: theme.textLight, flex: 1 }]}>
                     <Text style={{ color: '#fff' }}>Anulează</Text>
                  </TouchableOpacity>
                  <TouchableOpacity onPress={saveEdit} style={[styles.btnClose, { backgroundColor: theme.primary, flex: 1 }]}>
                     <Text style={{ color: '#fff', fontWeight: 'bold' }}>Salvează</Text>
                  </TouchableOpacity>
-              </View>
-
+             </View>
            </View>
+
+           {/* --- FIX IOS: Picker-ul randat DIRECT AICI, nu într-un nou Modal --- */}
+           {showDatePicker && activeDateInput === 'edit' && (
+             <CustomDateTimePicker 
+                onClose={() => setShowDatePicker(false)}
+                onSelect={(date) => setEditDeadline(date)}
+                theme={theme}
+             />
+           )}
          </View>
       </Modal>
 
@@ -868,8 +886,7 @@ const styles = StyleSheet.create({
   taskActions: { alignItems: 'center', gap: 8 },
   actionBtn: { padding: 8, borderRadius: 20, borderWidth: 1 },
   pinIndicator: { position: 'absolute', top: -5, left: -5, padding: 4, borderRadius: 10 },
-  sectionTitle: { marginHorizontal: 20, marginBottom: 10, fontSize: 18, fontWeight: 'bold' },
-
+  
   calendarContainer: { margin: 20, padding: 15, borderRadius: 20 },
   calendarHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 15 },
   calendarGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 2 },
@@ -881,7 +898,9 @@ const styles = StyleSheet.create({
   quoteAuthor: { fontWeight: 'bold', textTransform: 'uppercase' },
   btnGenerate: { padding: 15, paddingHorizontal: 30, borderRadius: 30, flexDirection: 'row', alignItems: 'center' },
 
+  // Styles pentru Modale și Overlay-uri
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' },
+  overlayAbsolute: { position: 'absolute', top: 0, bottom: 0, left: 0, right: 0 }, // Cheia pentru fix-ul iOS
   modalContent: { width: '85%', padding: 25, borderRadius: 25 },
   modalTitle: { fontSize: 22, fontWeight: 'bold', marginBottom: 15 },
   btnClose: { padding: 12, borderRadius: 12, alignItems: 'center', justifyContent: 'center' }
